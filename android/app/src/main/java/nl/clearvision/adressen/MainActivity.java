@@ -1,4 +1,4 @@
-package io.ionic.starter;
+package nl.clearvision.adressen;
 
 import com.getcapacitor.BridgeActivity;
 

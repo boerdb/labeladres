@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard,
   IonCardContent, IonItem, IonLabel, IonButton, IonIcon,
-  IonList, IonText, IonButtons, IonSearchbar, IonChip, IonSpinner, ToastController
+  IonList, IonText, IonButtons, IonSearchbar, IonSpinner, IonCheckbox, ToastController
 } from '@ionic/angular/standalone';
 import { PersonenService, Persoon } from '../services/personen';
 import { AuthService } from '../services/auth.service';
@@ -19,10 +19,11 @@ import { AddressLabelRendererService } from '../services/address-label-renderer.
   imports: [
     CommonModule, FormsModule, IonHeader, IonToolbar, IonTitle, IonContent, IonCard,
     IonCardContent, IonItem, IonLabel, RouterModule,
-    IonButton, IonIcon, IonList, IonText, IonButtons, IonSearchbar, IonChip, IonSpinner
+    IonButton, IonIcon, IonList, IonText, IonButtons, IonSearchbar, IonSpinner, IonCheckbox
   ]
 })
 export class LijstPage {
+  private readonly batchPrintPauzeMs = 900;
   // Gebruik van de moderne inject() functie
   private personenService = inject(PersonenService);
   private router = inject(Router);
@@ -37,6 +38,10 @@ export class LijstPage {
   printerNaam: string | null = null;
   koppelenBezig = false;
   printenBezigId: number | string | null = null;
+  batchPrintBezig = false;
+  batchPrintTotaal = 0;
+  batchPrintIndex = 0;
+  private geselecteerdeSleutels = new Set<number | string>();
 
   // Deze methode zorgt dat de lijst ververst zodra je op de pagina komt
   async ionViewWillEnter() {
@@ -86,6 +91,7 @@ export class LijstPage {
     if (!id) return;
     if (confirm('Weet je zeker dat je deze persoon wilt wissen?')) {
       this.personenService.deletePersoon(id).subscribe(() => {
+        this.geselecteerdeSleutels.delete(id);
         this.loadPersonen();
       });
     }
@@ -124,11 +130,9 @@ export class LijstPage {
     this.printenBezigId = key;
 
     try {
-      if (!this.printerService.getConnectedDeviceName()) {
-        await this.koppelPrinter();
-        if (!this.printerService.getConnectedDeviceName()) {
-          return;
-        }
+      const printerVerbonden = await this.ensurePrinterConnected();
+      if (!printerVerbonden) {
+        return;
       }
 
       const canvas = this.labelRenderer.renderPersoon(p);
@@ -146,8 +150,113 @@ export class LijstPage {
     return this.printenBezigId === this.getPersoonKey(p);
   }
 
+  isGeselecteerd(p: Persoon): boolean {
+    return this.geselecteerdeSleutels.has(this.getPersoonKey(p));
+  }
+
+  wijzigSelectie(p: Persoon, geselecteerd: boolean) {
+    const key = this.getPersoonKey(p);
+    if (geselecteerd) {
+      this.geselecteerdeSleutels.add(key);
+      return;
+    }
+
+    this.geselecteerdeSleutels.delete(key);
+  }
+
+  toggleAlleGefilterdeSelectie() {
+    const allesGeselecteerd = this.zijnAlleGefilterdePersonenGeselecteerd();
+
+    for (const persoon of this.gefilterdePersonen) {
+      const key = this.getPersoonKey(persoon);
+      if (allesGeselecteerd) {
+        this.geselecteerdeSleutels.delete(key);
+      } else {
+        this.geselecteerdeSleutels.add(key);
+      }
+    }
+  }
+
+  zijnAlleGefilterdePersonenGeselecteerd(): boolean {
+    return this.gefilterdePersonen.length > 0 && this.gefilterdePersonen.every((persoon) => this.isGeselecteerd(persoon));
+  }
+
+  heeftSelectie(): boolean {
+    return this.geselecteerdeSleutels.size > 0;
+  }
+
+  aantalSelecties(): number {
+    return this.geselecteerdeSleutels.size;
+  }
+
+  async printGeselecteerden() {
+    const geselecteerdePersonen = this.allePersonen.filter((persoon) => this.geselecteerdeSleutels.has(this.getPersoonKey(persoon)));
+
+    if (!geselecteerdePersonen.length) {
+      await this.toonToast('Selecteer eerst een of meer adressen.');
+      return;
+    }
+
+    this.batchPrintBezig = true;
+    this.batchPrintTotaal = geselecteerdePersonen.length;
+    this.batchPrintIndex = 0;
+
+    try {
+      const printerVerbonden = await this.ensurePrinterConnected();
+      if (!printerVerbonden) {
+        return;
+      }
+
+      for (const persoon of geselecteerdePersonen) {
+        this.batchPrintIndex += 1;
+        this.printenBezigId = this.getPersoonKey(persoon);
+
+        const canvas = this.labelRenderer.renderPersoon(persoon);
+        await this.printerService.print(canvas);
+
+        if (this.batchPrintIndex < geselecteerdePersonen.length) {
+          await this.wacht(this.batchPrintPauzeMs);
+        }
+      }
+
+      this.geselecteerdeSleutels.clear();
+      await this.toonToast(`${geselecteerdePersonen.length} adreslabels verzonden.`);
+    } catch (error) {
+      const naam = this.getPersoonNaamOpKey(this.printenBezigId);
+      await this.toonToast(`Batch gestopt bij ${naam}: ${this.errorMessage(error)}`);
+    } finally {
+      this.batchPrintBezig = false;
+      this.batchPrintTotaal = 0;
+      this.batchPrintIndex = 0;
+      this.printenBezigId = null;
+      this.refreshPrinterStatus();
+    }
+  }
+
   private getPersoonKey(p: Persoon): number | string {
     return p.id ?? `${p.voornaam}-${p.achternaam}-${p.postcode}`;
+  }
+
+  private getPersoonNaamOpKey(key: number | string | null): string {
+    if (key === null) {
+      return 'onbekend adres';
+    }
+
+    const persoon = this.allePersonen.find((item) => this.getPersoonKey(item) === key);
+    if (!persoon) {
+      return 'onbekend adres';
+    }
+
+    return `${persoon.voornaam} ${persoon.achternaam}`.trim() || 'onbekend adres';
+  }
+
+  private async ensurePrinterConnected(): Promise<boolean> {
+    if (this.printerService.getConnectedDeviceName()) {
+      return true;
+    }
+
+    await this.koppelPrinter();
+    return Boolean(this.printerService.getConnectedDeviceName());
   }
 
   private errorMessage(error: unknown): string {
@@ -161,5 +270,11 @@ export class LijstPage {
       position: 'bottom',
     });
     await toast.present();
+  }
+
+  private wacht(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
   }
 }

@@ -9,7 +9,7 @@
       </ion-button>
     </ion-buttons>
 
-    <ion-title>Mijn Personen</ion-title>
+    <ion-title>Mijn Adressen</ion-title>
 
     <ion-buttons slot="end">
       <ion-button fill="clear" [disabled]="koppelenBezig" (click)="koppelPrinter()">
@@ -39,16 +39,28 @@
     class="ion-margin-bottom">
   </ion-searchbar>
 
-  <ion-chip [color]="printerNaam ? 'success' : 'medium'" class="ion-margin-bottom">
-    <ion-icon name="bluetooth-outline"></ion-icon>
-    <ion-label>
-      {{ printerNaam ? ('Gekoppeld: ' + printerNaam) : 'Geen printer gekoppeld' }}
-    </ion-label>
-  </ion-chip>
+  <div class="lijst-acties ion-margin-bottom">
+    <ion-button fill="outline" size="small" [disabled]="!gefilterdePersonen.length || batchPrintBezig" (click)="toggleAlleGefilterdeSelectie()">
+      {{ zijnAlleGefilterdePersonenGeselecteerd() ? 'Deselecteer zichtbaar' : 'Selecteer zichtbaar' }}
+    </ion-button>
+
+    <ion-button color="secondary" size="small" [disabled]="!heeftSelectie() || batchPrintBezig" (click)="printGeselecteerden()">
+      <ion-icon slot="start" name="print-outline"></ion-icon>
+      <span *ngIf="!batchPrintBezig">Print selectie ({{ aantalSelecties() }})</span>
+      <span *ngIf="batchPrintBezig">Printen {{ batchPrintIndex }}/{{ batchPrintTotaal }}</span>
+    </ion-button>
+  </div>
 
   <ion-card>
     <ion-list *ngIf="gefilterdePersonen.length > 0; else geenPersonen">
       <ion-item *ngFor="let p of gefilterdePersonen">
+
+        <ion-checkbox
+          slot="start"
+          [checked]="isGeselecteerd(p)"
+          [disabled]="batchPrintBezig"
+          (ionChange)="wijzigSelectie(p, $event.detail.checked)">
+        </ion-checkbox>
 
         <ion-label class="ion-text-wrap">
           <h2>
@@ -64,7 +76,7 @@
           </p>
         </ion-label>
 
-        <ion-button fill="clear" color="secondary" [disabled]="isPrinting(p)" (click)="printPersoon(p)">
+        <ion-button fill="clear" color="secondary" [disabled]="isPrinting(p) || batchPrintBezig" (click)="printPersoon(p)">
           <ion-icon slot="icon-only" name="print-outline"></ion-icon>
         </ion-button>
 

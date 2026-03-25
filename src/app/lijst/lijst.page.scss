@@ -14,3 +14,10 @@
 	margin-right: 5px;
 	font-size: 0.9rem;
 }
+
+.lijst-acties {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	flex-wrap: wrap;
+}

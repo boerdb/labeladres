@@ -1,11 +1,11 @@
 import { Injectable } from '@angular/core';
-import JsBarcode from 'jsbarcode';
 import { Persoon } from './personen';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AddressLabelRendererService {
+  private readonly kixAlphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   private readonly dotsPerMm = 8;
   private readonly printableWidthMm = 43;
   private readonly labelHeightMm = 80;
@@ -14,8 +14,11 @@ export class AddressLabelRendererService {
   private readonly height = this.printableWidthMm * this.dotsPerMm;
   private readonly paddingX = 28;
   private readonly paddingY = 22;
-  private readonly barcodeHeight = 64;
-  private readonly barcodeGap = 18;
+  private readonly barcodeHeight = 84;
+  private readonly barcodeGap = 16;
+  private readonly kixBarWidth = 6;
+  private readonly kixBarGap = 3;
+  private readonly kixTextGap = 8;
 
   renderPersoon(persoon: Persoon): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -30,7 +33,7 @@ export class AddressLabelRendererService {
     const naam = `${persoon.voornaam} ${persoon.achternaam}`.trim();
     const adres = `${persoon.straat} ${persoon.huisnummer}`.trim();
     const plaats = `${persoon.postcode} ${persoon.woonplaats}`.trim();
-    const barcodeValue = this.createBarcodeValue(persoon);
+    const barcodeValue = this.createKixValue(persoon);
 
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -63,28 +66,123 @@ export class AddressLabelRendererService {
     return canvas;
   }
 
-  private createBarcodeValue(persoon: Persoon): string {
+  private createKixValue(persoon: Persoon): string {
     const postcode = persoon.postcode.replace(/\s+/g, '').toUpperCase();
     const huisnummer = persoon.huisnummer.replace(/\s+/g, '').toUpperCase();
-    const woonplaats = persoon.woonplaats.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+    const waarde = `${postcode}${huisnummer}`.replace(/[^A-Z0-9]/g, '');
 
-    return `${postcode}-${huisnummer}-${woonplaats || 'ADR'}`;
+    return waarde || 'POSTNL';
   }
 
   private renderBarcode(value: string): HTMLCanvasElement {
     const barcodeCanvas = document.createElement('canvas');
+    const displayValue = `${value}${this.calculateChecksum(value)}`;
+    const encoded = `S${displayValue}E`;
+    const barCount = encoded.length * 4;
+    const barcodeWidth = barCount * this.kixBarWidth + (barCount - 1) * this.kixBarGap;
 
-    JsBarcode(barcodeCanvas, value, {
-      format: 'CODE128',
-      width: 2,
-      height: this.barcodeHeight,
-      margin: 0,
-      displayValue: false,
-      background: '#ffffff',
-      lineColor: '#000000',
+    barcodeCanvas.width = barcodeWidth;
+    barcodeCanvas.height = this.barcodeHeight + this.kixTextGap + 20;
+
+    const ctx = barcodeCanvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Barcode canvas kon niet worden gemaakt.');
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, barcodeCanvas.width, barcodeCanvas.height);
+    ctx.fillStyle = '#000000';
+
+    const states: string[] = [];
+    for (const character of encoded.split('')) {
+      states.push(...this.getKixPattern(character));
+    }
+
+    states.forEach((state: string, index: number) => {
+      const x = index * (this.kixBarWidth + this.kixBarGap);
+      const y = this.getBarY(state);
+      const height = this.getBarHeight(state);
+      ctx.fillRect(x, y, this.kixBarWidth, height);
     });
 
+    ctx.font = 'bold 18px Trebuchet MS, Arial, sans-serif';
+    ctx.textBaseline = 'top';
+    const textWidth = ctx.measureText(displayValue).width;
+    ctx.fillText(displayValue, Math.round((barcodeCanvas.width - textWidth) / 2), this.barcodeHeight + this.kixTextGap);
+
     return barcodeCanvas;
+  }
+
+  private getKixPattern(character: string): string[] {
+    if (character === 'S') {
+      return ['full', 'tracker', 'full', 'tracker'];
+    }
+
+    if (character === 'E') {
+      return ['tracker', 'full', 'tracker', 'full'];
+    }
+
+    const normalized = character.toUpperCase();
+    const index = this.kixAlphabet.indexOf(normalized);
+    if (index === -1) {
+      return ['tracker', 'tracker', 'tracker', 'tracker'];
+    }
+
+    return index
+      .toString(4)
+      .padStart(4, '0')
+      .split('')
+      .map((digit) => this.mapDigitToBarState(digit));
+  }
+
+  private mapDigitToBarState(digit: string): string {
+    switch (digit) {
+      case '0':
+        return 'tracker';
+      case '1':
+        return 'ascender';
+      case '2':
+        return 'descender';
+      default:
+        return 'full';
+    }
+  }
+
+  private calculateChecksum(value: string): string {
+    const checksum = value
+      .split('')
+      .reduce((total, character) => {
+        const index = this.kixAlphabet.indexOf(character);
+        return total + Math.max(index, 0);
+      }, 0) % this.kixAlphabet.length;
+
+    return this.kixAlphabet[checksum];
+  }
+
+  private getBarY(state: string): number {
+    switch (state) {
+      case 'ascender':
+        return 0;
+      case 'descender':
+        return Math.round(this.barcodeHeight * 0.42);
+      case 'full':
+        return 0;
+      default:
+        return Math.round(this.barcodeHeight * 0.22);
+    }
+  }
+
+  private getBarHeight(state: string): number {
+    switch (state) {
+      case 'ascender':
+        return Math.round(this.barcodeHeight * 0.58);
+      case 'descender':
+        return Math.round(this.barcodeHeight * 0.58);
+      case 'full':
+        return this.barcodeHeight;
+      default:
+        return Math.round(this.barcodeHeight * 0.36);
+    }
   }
 
   private createWrappedLines(
