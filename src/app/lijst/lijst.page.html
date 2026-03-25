@@ -1,0 +1,70 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button *ngIf="!authService.isIngelogd" routerLink="/login">
+        Login
+      </ion-button>
+      <ion-button *ngIf="authService.isIngelogd" (click)="authService.logout()" color="warning">
+        Log uit
+      </ion-button>
+    </ion-buttons>
+
+    <ion-title>Mijn Personen</ion-title>
+
+    <ion-buttons slot="end">
+      <ion-button *ngIf="authService.isIngelogd" (click)="nieuwPersoon()">
+        Nieuw +
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+
+  <ion-searchbar
+    placeholder="Zoek op naam, straat of stad..."
+    [(ngModel)]="zoekTerm"
+    (ionInput)="filterLijst()"
+    animated="true"
+    class="ion-margin-bottom">
+  </ion-searchbar>
+
+  <ion-card>
+    <ion-list *ngIf="gefilterdePersonen.length > 0; else geenPersonen">
+      <ion-item *ngFor="let p of gefilterdePersonen">
+
+        <ion-label class="ion-text-wrap">
+          <h2>
+            <strong>{{ p.voornaam }} {{ p.achternaam }}</strong>
+            <span style="color: var(--ion-color-medium); font-size: 0.85rem;"> ({{ p.geslacht }})</span>
+          </h2>
+          <p>{{ p.straat }} {{ p.huisnummer }}</p>
+          <p>{{ p.postcode }} {{ p.woonplaats }}</p>
+
+          <p *ngIf="p.telefoon" style="color: var(--ion-color-primary); margin-top: 4px; display: flex; align-items: center;">
+            <ion-icon name="call-outline" style="margin-right: 5px; font-size: 0.9rem;"></ion-icon>
+            {{ p.telefoon }}
+          </p>
+        </ion-label>
+
+        <ion-button *ngIf="authService.isIngelogd" fill="clear" (click)="editPersoon(p)">
+          <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+        </ion-button>
+
+        <ion-button *ngIf="authService.isIngelogd" fill="clear" color="warning" (click)="deletePersoon(p.id)">
+          <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+        </ion-button>
+
+      </ion-item>
+    </ion-list>
+
+    <ng-template #geenPersonen>
+      <ion-card-content class="ion-text-center">
+        <ion-text color="medium">
+          {{ zoekTerm ? 'Geen personen gevonden voor deze zoekterm.' : 'Nog geen personen in de database.' }}
+        </ion-text>
+      </ion-card-content>
+    </ng-template>
+  </ion-card>
+
+</ion-content>

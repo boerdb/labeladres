@@ -1,20 +1,43 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title>
-      Blank
-    </ion-title>
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button (click)="cancel()">Terug</ion-button>
+    </ion-buttons>
+    <ion-title>{{ huidigPersoon.id ? 'Persoon Bewerken' : 'Nieuw Persoon' }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">Blank</ion-title>
-    </ion-toolbar>
-  </ion-header>
+<ion-content class="ion-padding">
+  <ion-card>
+    <ion-card-content>
+      <ion-item>
+        <ion-label position="stacked">Geslacht</ion-label>
+        <ion-select [(ngModel)]="huidigPersoon.geslacht" interface="popover">
+          <ion-select-option value="Man">Man</ion-select-option>
+          <ion-select-option value="Vrouw">Vrouw</ion-select-option>
+          <ion-select-option value="Anders">Anders</ion-select-option>
+        </ion-select>
+      </ion-item>
 
-  <div id="container">
-    <strong>Ready to create an app?</strong>
-    <p>Start with Ionic <a target="_blank" rel="noopener noreferrer" href="https://ionicframework.com/docs/components">UI Components</a></p>
-  </div>
+      <ion-item><ion-label position="stacked">Voornaam</ion-label><ion-input type="text" [(ngModel)]="huidigPersoon.voornaam" maxlength="50"></ion-input></ion-item>
+      <ion-item><ion-label position="stacked">Achternaam</ion-label><ion-input type="text" [(ngModel)]="huidigPersoon.achternaam" maxlength="50"></ion-input></ion-item>
+      <ion-item><ion-label position="stacked">Straat</ion-label><ion-input type="text" [(ngModel)]="huidigPersoon.straat" maxlength="100"></ion-input></ion-item>
+      <ion-item><ion-label position="stacked">Huisnummer</ion-label><ion-input type="text" [(ngModel)]="huidigPersoon.huisnummer" maxlength="10"></ion-input></ion-item>
+
+      <ion-item><ion-label position="stacked">Postcode</ion-label>
+        <ion-input type="text" [(ngModel)]="huidigPersoon.postcode" maxlength="6" placeholder="Bijv. 1234AB"></ion-input>
+      </ion-item>
+
+      <ion-item><ion-label position="stacked">Woonplaats</ion-label><ion-input type="text" [(ngModel)]="huidigPersoon.woonplaats" maxlength="100"></ion-input></ion-item>
+
+      <ion-item><ion-label position="stacked">Telefoon</ion-label>
+        <ion-input type="tel" [(ngModel)]="huidigPersoon.telefoon" maxlength="15" placeholder="06-12345678"></ion-input>
+      </ion-item>
+
+
+      <div class="ion-margin-top" style="display: flex; gap: 10px;">
+        <ion-button expand="block" (click)="savePersoon()" style="flex: 1;">Opslaan</ion-button>
+      </div>
+    </ion-card-content>
+  </ion-card>
 </ion-content>

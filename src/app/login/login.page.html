@@ -1,0 +1,35 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/lijst"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Beheer Login</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-card style="margin-top: 50px;">
+    <ion-card-content>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <ion-icon name="person-circle-outline" style="font-size: 64px; color: var(--ion-color-primary);"></ion-icon>
+      </div>
+
+      <ion-item>
+        <ion-label position="stacked">Gebruikersnaam</ion-label>
+        <ion-input [(ngModel)]="user" type="text" placeholder="Naam"></ion-input>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Wachtwoord</ion-label>
+        <ion-input [(ngModel)]="pass" type="password" placeholder="******"></ion-input>
+      </ion-item>
+
+      <ion-button expand="block" (click)="login()" class="ion-margin-top">
+        Inloggen
+      </ion-button>
+      <ion-button expand="block" fill="outline" (click)="registreer()" class="ion-margin-top">
+  Nieuw Account Aanmaken
+</ion-button>
+    </ion-card-content>
+  </ion-card>
+</ion-content>
