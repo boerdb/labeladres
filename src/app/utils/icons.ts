@@ -1,5 +1,15 @@
 import { addIcons } from 'ionicons';
-import { personAddOutline, trashOutline, createOutline, personOutline,searchOutline,callOutline, personCircleOutline } from 'ionicons/icons';
+import {
+  personAddOutline,
+  trashOutline,
+  createOutline,
+  personOutline,
+  searchOutline,
+  callOutline,
+  personCircleOutline,
+  bluetoothOutline,
+  printOutline,
+} from 'ionicons/icons';
 
 export function registerAppIcons() {
   addIcons({
@@ -9,6 +19,8 @@ export function registerAppIcons() {
     'person-outline': personOutline,
     'search-outline': searchOutline,
     'call-outline': callOutline,
-    'person-circle-outline': personCircleOutline
+    'person-circle-outline': personCircleOutline,
+    'bluetooth-outline': bluetoothOutline,
+    'print-outline': printOutline
   });
 }

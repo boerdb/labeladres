@@ -1,0 +1,16 @@
+.persoon-geslacht {
+	color: var(--ion-color-medium);
+	font-size: 0.85rem;
+}
+
+.persoon-telefoon {
+	color: var(--ion-color-primary);
+	margin-top: 4px;
+	display: flex;
+	align-items: center;
+}
+
+.persoon-telefoon-icon {
+	margin-right: 5px;
+	font-size: 0.9rem;
+}
