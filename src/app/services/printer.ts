@@ -1,10 +1,12 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { BleClient, BleDevice } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
 
 const DEFAULT_SERVICE_UUID = '0000ff00-0000-1000-8000-00805f9b34fb';
 const DEFAULT_CHAR_UUID    = '0000ff02-0000-1000-8000-00805f9b34fb';
 const NOTIFY_CHAR_UUID     = '0000ff03-0000-1000-8000-00805f9b34fb';
+const BATTERY_SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb';
+const BATTERY_LEVEL_CHAR_UUID = '00002a19-0000-1000-8000-00805f9b34fb';
 const KNOWN_PRINTER_NAME   = 'Q199G4C40030033';
 const LAST_DEVICE_ID_KEY   = 'phomemo.lastDeviceId';
 // 64/100 was stabiel maar te traag voor volledige 50x80 labels.
@@ -33,20 +35,29 @@ const PROFILE_CANDIDATES = [
   },
 ] as const;
 
+type BleServices = Awaited<ReturnType<typeof BleClient.getServices>>;
+
 @Injectable({
   providedIn: 'root'
 })
 export class PrinterService {
+  private readonly ngZone = inject(NgZone);
   private deviceId: string | null = null;
   private deviceName: string | null = null;
   private serviceUuid = DEFAULT_SERVICE_UUID;
   private charUuid = DEFAULT_CHAR_UUID;
   private notifyUuid: string | null = NOTIFY_CHAR_UUID;
   private preferWriteWithoutResponse = false;
+  readonly connectedDeviceNameSignal = signal<string | null>(null);
+  readonly batteryLevelSignal = signal<number | null>(null);
   discoveredInfo = '';
 
   getConnectedDeviceName(): string | null {
     return this.deviceName;
+  }
+
+  hasSavedPrinter(): boolean {
+    return Boolean(this.getLastDeviceId());
   }
 
   private saveLastDeviceId(deviceId: string): void {
@@ -66,8 +77,7 @@ export class PrinterService {
   }
 
   forgetSavedPrinter(): void {
-    this.deviceId = null;
-    this.deviceName = null;
+    this.resetConnectionState();
     try {
       localStorage.removeItem(LAST_DEVICE_ID_KEY);
     } catch {
@@ -84,13 +94,17 @@ export class PrinterService {
     try {
       await this.ensureBleReady();
       this.deviceId = savedDeviceId;
+      const devices = await BleClient.getDevices([savedDeviceId]).catch(() => [] as BleDevice[]);
+      if (devices[0]?.name) {
+        this.setDeviceName(devices[0].name);
+      }
       await BleClient.disconnect(savedDeviceId).catch(() => undefined);
       await BleClient.connect(savedDeviceId);
       await this.configureConnectedPrinter(savedDeviceId);
       return true;
     } catch (error) {
       console.warn('Auto-reconnect mislukt:', error);
-      this.deviceId = null;
+      this.resetConnectionState(false);
       return false;
     }
   }
@@ -118,6 +132,8 @@ export class PrinterService {
       }
     }
     console.log('Gevonden BLE services:\n' + this.discoveredInfo);
+
+    await this.configureBatteryReporting(deviceId, services);
 
     // Stap 1: zoek een bekend Phomemo profiel.
     let found = false;
@@ -176,6 +192,119 @@ export class PrinterService {
     }
   }
 
+  private async configureBatteryReporting(deviceId: string, services: BleServices): Promise<void> {
+    this.setBatteryLevel(null);
+
+    const candidate = this.findBatteryCharacteristic(services);
+    if (!candidate) {
+      return;
+    }
+
+    try {
+      const initialValue = await BleClient.read(deviceId, candidate.serviceUuid, candidate.characteristicUuid);
+      this.updateBatteryLevelFromValue(initialValue);
+    } catch (error) {
+      console.log('Batterijniveau lezen mislukt:', error);
+    }
+
+    if (!candidate.canNotify) {
+      return;
+    }
+
+    try {
+      await BleClient.startNotifications(
+        deviceId,
+        candidate.serviceUuid,
+        candidate.characteristicUuid,
+        (value) => {
+          this.updateBatteryLevelFromValue(value);
+        }
+      );
+      console.log('Batterij-notificaties ingeschakeld op', candidate.characteristicUuid);
+    } catch (error) {
+      console.log('Batterij-notificaties niet ondersteund:', error);
+    }
+  }
+
+  private findBatteryCharacteristic(services: BleServices): {
+    serviceUuid: string;
+    characteristicUuid: string;
+    canNotify: boolean;
+  } | null {
+    for (const svc of services) {
+      const serviceUuid = svc.uuid.toLowerCase();
+      const exactMatch = svc.characteristics.find((ch) => {
+        const charUuid = ch.uuid.toLowerCase();
+        return charUuid === BATTERY_LEVEL_CHAR_UUID && (ch.properties.read || ch.properties.notify || ch.properties.indicate);
+      });
+
+      if (exactMatch) {
+        return {
+          serviceUuid: svc.uuid,
+          characteristicUuid: exactMatch.uuid,
+          canNotify: !!(exactMatch.properties.notify || exactMatch.properties.indicate),
+        };
+      }
+
+      if (serviceUuid !== BATTERY_SERVICE_UUID) {
+        continue;
+      }
+
+      const fallback = svc.characteristics.find((ch) => ch.properties.read || ch.properties.notify || ch.properties.indicate);
+      if (fallback) {
+        return {
+          serviceUuid: svc.uuid,
+          characteristicUuid: fallback.uuid,
+          canNotify: !!(fallback.properties.notify || fallback.properties.indicate),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private updateBatteryLevelFromValue(value: DataView): void {
+    const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    if (!bytes.length) {
+      return;
+    }
+
+    const level = bytes[0];
+    if (level > 100) {
+      return;
+    }
+
+    this.setBatteryLevel(level);
+  }
+
+  private setDeviceName(name: string | null): void {
+    this.deviceName = name;
+    this.ngZone.run(() => {
+      this.connectedDeviceNameSignal.set(name);
+    });
+  }
+
+  private setBatteryLevel(level: number | null): void {
+    const normalizedLevel = level === null ? null : Math.max(0, Math.min(100, Math.round(level)));
+    this.ngZone.run(() => {
+      this.batteryLevelSignal.set(normalizedLevel);
+    });
+  }
+
+  private resetConnectionState(resetSavedDevice = false): void {
+    this.deviceId = null;
+    this.setDeviceName(null);
+    this.setBatteryLevel(null);
+
+    if (resetSavedDevice) {
+      try {
+        localStorage.removeItem(LAST_DEVICE_ID_KEY);
+      } catch {
+        // Geen probleem als storage niet beschikbaar is.
+      }
+    }
+  }
+
   private async ensureBleReady(): Promise<void> {
     await BleClient.initialize();
 
@@ -222,7 +351,7 @@ export class PrinterService {
     await BleClient.disconnect(deviceId).catch(() => undefined);
     await BleClient.connect(deviceId);
     const devices = await BleClient.getDevices([deviceId]).catch(() => [] as BleDevice[]);
-    this.deviceName = devices[0]?.name || this.deviceName || deviceId;
+    this.setDeviceName(devices[0]?.name || this.deviceName || deviceId);
     await this.configureConnectedPrinter(deviceId);
     this.saveLastDeviceId(deviceId);
   }
@@ -275,14 +404,13 @@ export class PrinterService {
       const device = await BleClient.requestDevice({
         optionalServices: PROFILE_CANDIDATES.map(p => p.service) as string[],
       });
-      this.deviceName = device.name || device.deviceId;
+      this.setDeviceName(device.name || device.deviceId);
       await this.connectByDeviceId(device.deviceId);
 
       return true;
     } catch (error) {
       console.warn('Bluetooth verbinding mislukt:', error);
-      this.deviceId = null;
-      this.deviceName = null;
+      this.resetConnectionState(false);
       return false;
     }
   }

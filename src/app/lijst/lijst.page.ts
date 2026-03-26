@@ -11,6 +11,7 @@ import { PersonenService, Persoon } from '../services/personen';
 import { AuthService } from '../services/auth.service';
 import { PrinterService } from '../services/printer';
 import { AddressLabelRendererService } from '../services/address-label-renderer.service';
+import { getBatteryColor, getBatteryIconName } from '../utils/icons';
 
 @Component({
   selector: 'app-lijst',
@@ -27,7 +28,7 @@ export class LijstPage {
   // Gebruik van de moderne inject() functie
   private personenService = inject(PersonenService);
   private router = inject(Router);
-  private printerService = inject(PrinterService);
+  public printerService = inject(PrinterService);
   private labelRenderer = inject(AddressLabelRendererService);
   private toastController = inject(ToastController);
   public authService = inject(AuthService);
@@ -99,6 +100,22 @@ export class LijstPage {
 
   refreshPrinterStatus() {
     this.printerNaam = this.printerService.getConnectedDeviceName();
+  }
+
+  get batterijNiveau(): number | null {
+    return this.printerService.batteryLevelSignal();
+  }
+
+  get batterijIconNaam(): string {
+    return getBatteryIconName(this.batterijNiveau);
+  }
+
+  get batterijKleur(): string {
+    return getBatteryColor(this.batterijNiveau);
+  }
+
+  get batterijLabel(): string {
+    return this.batterijNiveau === null ? 'onbekend' : `${this.batterijNiveau}%`;
   }
 
   async koppelPrinter() {

@@ -18,6 +18,11 @@
         <span *ngIf="!koppelenBezig">{{ printerNaam ? 'Printer gekoppeld' : 'Printer koppelen' }}</span>
       </ion-button>
 
+      <div *ngIf="printerNaam" class="printer-status-badge">
+        <ion-icon name="bluetooth-outline"></ion-icon>
+        <span class="printer-status-text">Verbonden met {{ printerNaam }}</span>
+      </div>
+
       <ion-button *ngIf="printerNaam" fill="clear" color="medium" (click)="vergeetPrinter()">
         Ontkoppel
       </ion-button>
@@ -76,15 +81,15 @@
           </p>
         </ion-label>
 
-        <ion-button fill="clear" color="secondary" [disabled]="isPrinting(p) || batchPrintBezig" (click)="printPersoon(p)">
+        <ion-button class="persoon-actie-button persoon-actie-button-print" fill="clear" color="secondary" size="small" [disabled]="isPrinting(p) || batchPrintBezig" (click)="printPersoon(p)">
           <ion-icon slot="icon-only" name="print-outline"></ion-icon>
         </ion-button>
 
-        <ion-button *ngIf="authService.isIngelogd" fill="clear" (click)="editPersoon(p)">
+        <ion-button *ngIf="authService.isIngelogd" class="persoon-actie-button" fill="clear" color="medium" size="small" (click)="editPersoon(p)">
           <ion-icon slot="icon-only" name="create-outline"></ion-icon>
         </ion-button>
 
-        <ion-button *ngIf="authService.isIngelogd" fill="clear" color="warning" (click)="deletePersoon(p.id)">
+        <ion-button *ngIf="authService.isIngelogd" class="persoon-actie-button" fill="clear" color="medium" size="small" (click)="deletePersoon(p.id)">
           <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
         </ion-button>
 

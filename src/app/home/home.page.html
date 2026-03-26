@@ -4,6 +4,18 @@
       <ion-button (click)="cancel()">Terug</ion-button>
     </ion-buttons>
     <ion-title>{{ huidigPersoon.id ? 'Persoon Bewerken' : 'Nieuw Persoon' }}</ion-title>
+
+    <ion-buttons slot="end">
+      <div *ngIf="printerNaam" class="printer-status-badge">
+        <ion-icon name="bluetooth-outline"></ion-icon>
+        <span class="printer-status-text">Verbonden met {{ printerNaam }}</span>
+      </div>
+
+      <div *ngIf="!printerNaam && autoReconnectBezig" class="printer-status-badge is-pending">
+        <ion-icon name="bluetooth-outline"></ion-icon>
+        <span>Printer zoeken...</span>
+      </div>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
@@ -34,9 +46,8 @@
         <ion-input type="tel" [(ngModel)]="huidigPersoon.telefoon" maxlength="15" placeholder="06-12345678"></ion-input>
       </ion-item>
 
-
-      <div class="ion-margin-top" style="display: flex; gap: 10px;">
-        <ion-button expand="block" (click)="savePersoon()" style="flex: 1;">Opslaan</ion-button>
+      <div class="ion-margin-top form-actions">
+        <ion-button expand="block" class="save-button" (click)="savePersoon()">Opslaan</ion-button>
       </div>
     </ion-card-content>
   </ion-card>
