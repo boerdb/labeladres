@@ -13,6 +13,7 @@ export class AddressLabelRendererService {
   private readonly height = this.printableWidthMm * this.dotsPerMm;
   private readonly paddingX = 28;
   private readonly paddingY = 22;
+  private readonly textStartX = 40;
 
   renderPersoon(persoon: Persoon): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -35,9 +36,9 @@ export class AddressLabelRendererService {
     ctx.textBaseline = 'top';
 
     const lines = [
-      ...this.createWrappedLines(ctx, naam || 'Onbekende naam', 'bold 46px Trebuchet MS, Arial, sans-serif', 2, 50),
-      ...this.createWrappedLines(ctx, adres || '-', '34px Trebuchet MS, Arial, sans-serif', 2, 38),
-      ...this.createWrappedLines(ctx, plaats || '-', '34px Trebuchet MS, Arial, sans-serif', 2, 38),
+      ...this.createWrappedLines(ctx, naam || 'Onbekende naam', 'bold 46px Trebuchet MS, Arial, sans-serif', 2, 50, 'center'),
+      ...this.createWrappedLines(ctx, adres || '-', '34px Trebuchet MS, Arial, sans-serif', 2, 38, 'left'),
+      ...this.createWrappedLines(ctx, plaats || '-', '34px Trebuchet MS, Arial, sans-serif', 2, 38, 'left'),
     ];
 
     const totalHeight = this.getTotalHeight(lines);
@@ -45,9 +46,12 @@ export class AddressLabelRendererService {
 
     for (const line of lines) {
       ctx.font = line.font;
-      const textWidth = ctx.measureText(line.text).width;
-      const x = Math.max(this.paddingX, Math.round((this.width - textWidth) / 2));
-      ctx.fillText(line.text, x, y);
+      ctx.textAlign = line.align as CanvasTextAlign;
+      if (line.align === 'center') {
+        ctx.fillText(line.text, this.width / 2, y);
+      } else {
+        ctx.fillText(line.text, this.textStartX, y);
+      }
       y += line.lineHeight;
     }
 
@@ -60,7 +64,8 @@ export class AddressLabelRendererService {
     font: string,
     maxLines: number,
     lineHeight: number,
-  ): Array<{ text: string; font: string; lineHeight: number }> {
+    align: 'left' | 'center' | 'right' = 'left'
+  ): Array<{ text: string; font: string; lineHeight: number; align: string }> {
     ctx.font = font;
 
     const maxWidth = this.width - this.paddingX * 2;
@@ -97,10 +102,10 @@ export class AddressLabelRendererService {
       lines[maxLines - 1] = `${lastLine}...`;
     }
 
-    return lines.map((line) => ({ text: line, font, lineHeight }));
+    return lines.map((line) => ({ text: line, font, lineHeight, align }));
   }
 
-  private getTotalHeight(lines: Array<{ text: string; font: string; lineHeight: number }>): number {
+  private getTotalHeight(lines: Array<{ text: string; font: string; lineHeight: number; align: string }>): number {
     return lines.reduce((total, line) => total + line.lineHeight, 0);
   }
 }
